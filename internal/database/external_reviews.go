@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"time"
+	"unicode/utf8"
 
 	"github.com/cockroachdb/errors"
 	"gorm.io/gorm"
@@ -52,8 +53,8 @@ const (
 	// MaxExternalReviewContextLength is the maximum length of the name of an
 	// external review tool.
 	MaxExternalReviewContextLength = 255
-	// MaxExternalReviewDescriptionLength is the maximum length of the
-	// description of an external review result.
+	// MaxExternalReviewDescriptionLength is the maximum number of characters
+	// of the description of an external review result.
 	MaxExternalReviewDescriptionLength = 255
 	// MaxExternalReviewTargetURLLength is the maximum length of the link to
 	// the report of an external review.
@@ -327,7 +328,7 @@ func (s *ExternalReviewsStore) SetStatus(ctx context.Context, repoID int64, opts
 		return nil, errors.Newf("invalid external review context %q", opts.Context)
 	case !IsValidExternalReviewTargetURL(opts.TargetURL):
 		return nil, errors.Newf("invalid external review target URL %q", opts.TargetURL)
-	case len(opts.Description) > MaxExternalReviewDescriptionLength:
+	case utf8.RuneCountInString(opts.Description) > MaxExternalReviewDescriptionLength:
 		return nil, errors.New("external review description is too long")
 	}
 

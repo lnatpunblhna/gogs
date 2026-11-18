@@ -298,6 +298,9 @@ func RegisterRoutes(f *flamego.Flame) {
 					f.Get("", getAllCommits)
 					f.Get("/{**}", getReferenceSHA)
 				})
+				f.Combo("/reviews/{sha}").
+					Get(listExternalReviewStatuses).
+					Post(reqRepoWriter(), bind(setExternalReviewStatusRequest{}), setExternalReviewStatus)
 
 				f.Group("/keys", func() {
 					f.Combo("").

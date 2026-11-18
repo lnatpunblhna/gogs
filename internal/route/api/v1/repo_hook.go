@@ -59,15 +59,16 @@ func createHook(c *apiContext, form createHookRequest) {
 		ContentType: database.ToHookContentType(form.Config["content_type"]),
 		Secret:      form.Config["secret"],
 		HookEvent: &database.HookEvent{
-			ChooseEvents: true,
-			Create:       slices.Contains(form.Events, string(database.HookEventTypeCreate)),
-			Delete:       slices.Contains(form.Events, string(database.HookEventTypeDelete)),
-			Fork:         slices.Contains(form.Events, string(database.HookEventTypeFork)),
-			Push:         slices.Contains(form.Events, string(database.HookEventTypePush)),
-			Issues:       slices.Contains(form.Events, string(database.HookEventTypeIssues)),
-			IssueComment: slices.Contains(form.Events, string(database.HookEventTypeIssueComment)),
-			PullRequest:  slices.Contains(form.Events, string(database.HookEventTypePullRequest)),
-			Release:      slices.Contains(form.Events, string(database.HookEventTypeRelease)),
+			ChooseEvents:   true,
+			Create:         slices.Contains(form.Events, string(database.HookEventTypeCreate)),
+			Delete:         slices.Contains(form.Events, string(database.HookEventTypeDelete)),
+			Fork:           slices.Contains(form.Events, string(database.HookEventTypeFork)),
+			Push:           slices.Contains(form.Events, string(database.HookEventTypePush)),
+			Issues:         slices.Contains(form.Events, string(database.HookEventTypeIssues)),
+			IssueComment:   slices.Contains(form.Events, string(database.HookEventTypeIssueComment)),
+			PullRequest:    slices.Contains(form.Events, string(database.HookEventTypePullRequest)),
+			Release:        slices.Contains(form.Events, string(database.HookEventTypeRelease)),
+			ExternalReview: slices.Contains(form.Events, string(database.HookEventTypeExternalReview)),
 		},
 		IsActive:     form.Active,
 		HookTaskType: database.ToHookTaskType(form.Type),
@@ -160,6 +161,7 @@ func editHook(c *apiContext, form editHookRequest) {
 	w.IssueComment = slices.Contains(form.Events, string(database.HookEventTypeIssueComment))
 	w.PullRequest = slices.Contains(form.Events, string(database.HookEventTypePullRequest))
 	w.Release = slices.Contains(form.Events, string(database.HookEventTypeRelease))
+	w.ExternalReview = slices.Contains(form.Events, string(database.HookEventTypeExternalReview))
 	if err = w.UpdateEvent(); err != nil {
 		c.Errorf(err, "update event")
 		return
