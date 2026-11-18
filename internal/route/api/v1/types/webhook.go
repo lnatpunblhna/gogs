@@ -156,3 +156,29 @@ type WebhookReleasePayload struct {
 }
 
 func (p *WebhookReleasePayload) JSONPayload() ([]byte, error) { return jsonPayload(p) }
+
+type WebhookExternalReviewAction string
+
+const WebhookExternalReviewRequested WebhookExternalReviewAction = "requested"
+
+// WebhookExternalReviewPayload asks an external review tool to review the head
+// commit of a pull request, and to report its result to StatusURL.
+type WebhookExternalReviewPayload struct {
+	Action WebhookExternalReviewAction `json:"action"`
+	// Context names the review tool that the rule of the base branch expects
+	// the result from.
+	Context string `json:"context"`
+	// Mode is "required" when only a passing review lets the pull request be
+	// merged, and "advisory" otherwise.
+	Mode string `json:"mode"`
+	// SHA is the head commit to review, which the base repository has as
+	// "refs/pull/<number>/head".
+	SHA         string       `json:"sha"`
+	StatusURL   string       `json:"status_url"`
+	Index       int64        `json:"number"`
+	PullRequest *PullRequest `json:"pull_request"`
+	Repository  *Repository  `json:"repository"`
+	Sender      *User        `json:"sender"`
+}
+
+func (p *WebhookExternalReviewPayload) JSONPayload() ([]byte, error) { return jsonPayload(p) }

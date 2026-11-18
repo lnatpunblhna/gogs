@@ -27,7 +27,7 @@ func TestDumpAndImport(t *testing.T) {
 	}
 	t.Parallel()
 
-	const wantTables = 16
+	const wantTables = 18
 	if len(Tables) != wantTables {
 		t.Fatalf("New table has added (want %d got %d), please add new tests for the table and update this check", wantTables, len(Tables))
 	}
@@ -149,6 +149,29 @@ func setupDBToDump(t *testing.T, db *gorm.DB) {
 			UserID:      2,
 			Email:       "bob@example.com",
 			IsActivated: true,
+		},
+
+		&ExternalReviewRule{
+			ID:          1,
+			RepoID:      1,
+			Branch:      "main",
+			Mode:        ExternalReviewModeRequired,
+			Context:     "opencodereview",
+			CreatedUnix: 1588568886,
+			UpdatedUnix: 1588572486, // 1 hour later
+		},
+
+		&ExternalReviewStatus{
+			ID:          1,
+			RepoID:      1,
+			CommitID:    "d3c6e4a1f0c2b8e7a9d5f4c3b2a1908e7d6c5b4a",
+			Context:     "opencodereview",
+			State:       ExternalReviewStatePassed,
+			TargetURL:   "https://review.example.com/reports/1",
+			Description: "No blocking issues",
+			CreatorID:   1,
+			CreatedUnix: 1588568886,
+			UpdatedUnix: 1588572486, // 1 hour later
 		},
 
 		&Follow{

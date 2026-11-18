@@ -1760,6 +1760,8 @@ func DeleteRepository(logger *logx.Logger, ownerID, repoID int64) error {
 		new(Release),
 		new(Collaboration),
 		new(ProtectBranch),
+		new(ExternalReviewRule),
+		new(ExternalReviewStatus),
 		new(Webhook),
 		new(HookTask),
 		new(LFSObject),

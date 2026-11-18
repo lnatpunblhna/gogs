@@ -387,16 +387,6 @@ func (pr *PullRequest) Merge(ctx context.Context, logger *logx.Logger, doer *Use
 		go AddTestPullRequestTask(logger, doer, pr.BaseRepo.ID, pr.BaseBranch, false)
 	}()
 
-	sess := x.NewSession()
-	defer sess.Close()
-	if err = sess.Begin(); err != nil {
-		return err
-	}
-
-	if err = pr.Issue.changeStatus(logger, sess, doer, pr.Issue.Repo, true); err != nil {
-		return errors.Newf("Issue.changeStatus: %v", err)
-	}
-
 	headRepoPath := RepoPath(pr.HeadUserName, pr.HeadRepo.Name)
 	headGitRepo, err := git.Open(headRepoPath)
 	if err != nil {
@@ -410,6 +400,25 @@ func (pr *PullRequest) Merge(ctx context.Context, logger *logx.Logger, doer *Use
 	headCommitID, err := headGitRepo.BranchCommitID(ctx, pr.HeadBranch)
 	if err != nil {
 		return errors.Newf("get head branch %q commit ID: %v", pr.HeadBranch, err)
+	}
+
+	// The review is checked for the very commit that is merged, so that a push
+	// after the pull request page was loaded cannot slip in unreviewed changes.
+	reviewCheck, err := Handle.ExternalReviews().Check(ctx, pr.BaseRepoID, pr.BaseBranch, headCommitID)
+	if err != nil {
+		return errors.Wrap(err, "check external review")
+	} else if reviewCheck != nil && reviewCheck.BlocksMerge() {
+		return ErrExternalReviewRequired{Context: reviewCheck.Rule.Context, CommitID: headCommitID}
+	}
+
+	sess := x.NewSession()
+	defer sess.Close()
+	if err = sess.Begin(); err != nil {
+		return err
+	}
+
+	if err = pr.Issue.changeStatus(logger, sess, doer, pr.Issue.Repo, true); err != nil {
+		return errors.Newf("Issue.changeStatus: %v", err)
 	}
 
 	// The temporary repository reads objects of both repositories, so the merge
@@ -955,7 +964,11 @@ func (prs PullRequestList) LoadAttributes() error {
 	return prs.loadAttributes(x)
 }
 
-func addHeadRepoTasks(logger *logx.Logger, prs []*PullRequest) {
+// addHeadRepoTasks brings the patches and the heads of the pull requests in
+// their base repositories up to date with their head branches, which the doer
+// pushed to, and queues them to be tested. It asks for external reviews of the
+// new head commits of those whose issues are loaded.
+func addHeadRepoTasks(logger *logx.Logger, doer *User, prs []*PullRequest) {
 	for _, pr := range prs {
 		if pr.HeadRepo == nil {
 			logger.Debug("Skipped pull request with missing head repository", "pullRequestID", pr.ID)
@@ -969,6 +982,12 @@ func addHeadRepoTasks(logger *logx.Logger, prs []*PullRequest) {
 		} else if err := pr.PushToBaseRepo(context.Background(), logger); err != nil {
 			logger.Error("Failed to push to base repository", "error", err)
 			continue
+		}
+
+		if pr.Issue != nil && pr.Issue.Repo != nil {
+			if err := Handle.ExternalReviews().RequestReview(context.Background(), logger, pr, doer); err != nil {
+				logger.Error("Failed to request external review", "pullRequestID", pr.ID, "error", err)
+			}
 		}
 
 		pr.AddToTaskQueue(logger)
@@ -1011,7 +1030,7 @@ func AddTestPullRequestTask(logger *logx.Logger, doer *User, repoID int64, branc
 		}
 	}
 
-	addHeadRepoTasks(logger, prs)
+	addHeadRepoTasks(logger, doer, prs)
 
 	logger.Debug("Finding pull requests by base branch", "baseRepoID", repoID, "baseBranch", branch)
 	prs, err = GetUnmergedPullRequestsByBaseInfo(repoID, branch)

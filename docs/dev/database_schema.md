@@ -91,6 +91,45 @@ Indexes:
 	"idx_email_address_user_id" (uid)
 ```
 
+# Table "external_review_rule"
+
+```
+    Field    |    Column    |      PostgreSQL       |         MySQL         |        SQLite3        
+-------------+--------------+-----------------------+-----------------------+-----------------------
+ ID          | id           | BIGSERIAL             | BIGINT AUTO_INCREMENT | INTEGER AUTOINCREMENT 
+ RepoID      | repo_id      | BIGINT NOT NULL       | BIGINT NOT NULL       | INTEGER NOT NULL      
+ Branch      | branch       | VARCHAR(255) NOT NULL | VARCHAR(255) NOT NULL | TEXT NOT NULL         
+ Mode        | mode         | VARCHAR(16) NOT NULL  | VARCHAR(16) NOT NULL  | TEXT NOT NULL         
+ Context     | context      | VARCHAR(255) NOT NULL | VARCHAR(255) NOT NULL | TEXT NOT NULL         
+ CreatedUnix | created_unix | BIGINT                | BIGINT                | INTEGER               
+ UpdatedUnix | updated_unix | BIGINT                | BIGINT                | INTEGER               
+
+Primary keys: id
+Indexes: 
+	"external_review_rule_repo_branch_unique" UNIQUE (repo_id, branch)
+```
+
+# Table "external_review_status"
+
+```
+    Field    |    Column    |      PostgreSQL       |         MySQL         |        SQLite3        
+-------------+--------------+-----------------------+-----------------------+-----------------------
+ ID          | id           | BIGSERIAL             | BIGINT AUTO_INCREMENT | INTEGER AUTOINCREMENT 
+ RepoID      | repo_id      | BIGINT NOT NULL       | BIGINT NOT NULL       | INTEGER NOT NULL      
+ CommitID    | commit_id    | VARCHAR(64) NOT NULL  | VARCHAR(64) NOT NULL  | TEXT NOT NULL         
+ Context     | context      | VARCHAR(255) NOT NULL | VARCHAR(255) NOT NULL | TEXT NOT NULL         
+ State       | state        | VARCHAR(16) NOT NULL  | VARCHAR(16) NOT NULL  | TEXT NOT NULL         
+ TargetURL   | target_url   | TEXT                  | TEXT                  | TEXT                  
+ Description | description  | VARCHAR(255)          | VARCHAR(255)          | TEXT                  
+ CreatorID   | creator_id   | BIGINT                | BIGINT                | INTEGER               
+ CreatedUnix | created_unix | BIGINT                | BIGINT                | INTEGER               
+ UpdatedUnix | updated_unix | BIGINT                | BIGINT                | INTEGER               
+
+Primary keys: id
+Indexes: 
+	"external_review_status_repo_commit_context_unique" UNIQUE (repo_id, commit_id, context)
+```
+
 # Table "follow"
 
 ```

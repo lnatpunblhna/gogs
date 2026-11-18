@@ -36,6 +36,7 @@ func TestWebhooks(t *testing.T) {
 		{"Delete", webhooksDelete},
 		{"Prepare", webhooksPrepare},
 		{"Prepare to Discord without settings", webhooksPrepareDiscordWithoutSettings},
+		{"Prepare external review", webhooksPrepareExternalReview},
 		{"Test", webhooksTest},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -323,4 +324,35 @@ func webhooksPrepareDiscordWithoutSettings(t *testing.T, ctx context.Context, s 
 	assert.NotContains(t, tasks[0].PayloadContent, `"username"`)
 	assert.NotContains(t, tasks[0].PayloadContent, `"avatar_url"`)
 	assert.Equal(t, after.ID, tasks[1].HookID)
+}
+
+func webhooksPrepareExternalReview(t *testing.T, ctx context.Context, s *WebhooksStore) {
+	_, repo := newTestOrgRepo(t, ctx, s)
+	reviewHook := newTestWebhook(t, ctx, s, repo.ID, 0, HookEvents{ExternalReview: true})
+	newTestWebhook(t, ctx, s, repo.ID, 0, HookEvents{PullRequest: true})
+	everything := newTestWebhook(t, ctx, s, repo.ID, 0, HookEvents{})
+	everything.HookEvent = &HookEvent{SendEverything: true}
+	require.NoError(t, everything.UpdateEvent())
+	require.NoError(t, s.Update(ctx, everything))
+	// Chat webhooks are meant for people, who have no use of the requests.
+	slack := newTestWebhook(t, ctx, s, repo.ID, 0, HookEvents{})
+	slack.HookTaskType = SLACK
+	slack.HookEvent = &HookEvent{SendEverything: true}
+	require.NoError(t, slack.UpdateEvent())
+	require.NoError(t, s.Update(ctx, slack))
+
+	payload := &apiv1types.WebhookExternalReviewPayload{
+		Action:  apiv1types.WebhookExternalReviewRequested,
+		Context: "opencodereview",
+		SHA:     "d3c6e4a1f0c2b8e7a9d5f4c3b2a1908e7d6c5b4a",
+	}
+	err := s.Prepare(ctx, logx.NewNoopLogger(), repo, HookEventTypeExternalReview, payload)
+	require.NoError(t, err)
+
+	tasks := listTestHookTasks(t, s)
+	require.Len(t, tasks, 2)
+	assert.Equal(t, reviewHook.ID, tasks[0].HookID)
+	assert.Equal(t, everything.ID, tasks[1].HookID)
+	assert.Equal(t, HookEventTypeExternalReview, tasks[0].EventType)
+	assert.Contains(t, tasks[0].PayloadContent, `"sha": "d3c6e4a1f0c2b8e7a9d5f4c3b2a1908e7d6c5b4a"`)
 }

@@ -319,5 +319,12 @@ func postRepoPull(c flamego.Context, logger *logx.Logger, l i18n.Locale, viewer 
 		logger.Error("Failed to push pull request to base repository", "pullID", pull.ID, "error", err)
 		return http.StatusInternalServerError, nil, errors.Wrap(err, "push to base repository")
 	}
+
+	// The pull request is open already, so a failure only leaves it without a
+	// review until the next push.
+	issue.Repo = repo
+	if err = database.Handle.ExternalReviews().RequestReview(ctx, logger, pull, viewer); err != nil {
+		logger.Error("Failed to request external review", "pullID", pull.ID, "error", err)
+	}
 	return http.StatusCreated, map[string]int64{"index": issue.Index}, nil
 }

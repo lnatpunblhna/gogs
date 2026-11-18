@@ -22,7 +22,7 @@ import (
 var Tables = []any{
 	new(Access), new(AccessToken), new(Action),
 	new(DeployKey),
-	new(EmailAddress),
+	new(EmailAddress), new(ExternalReviewRule), new(ExternalReviewStatus),
 	new(Follow),
 	new(HookTask),
 	new(LFSObject), new(LoginSource),
@@ -136,6 +136,10 @@ func (db *DB) Actions() *ActionsStore {
 
 func (db *DB) DeployKeys() *DeployKeysStore {
 	return newDeployKeysStore(db.db)
+}
+
+func (db *DB) ExternalReviews() *ExternalReviewsStore {
+	return newExternalReviewsStore(db.db)
 }
 
 func (db *DB) HookTasks() *HookTasksStore {

@@ -40,9 +40,11 @@ func TestMigrate(t *testing.T) {
 		tables, err := db.Migrator().GetTables()
 		require.NoError(t, err)
 		tables = slices.DeleteFunc(tables, func(name string) bool { return name == "sqlite_sequence" })
-		assert.Len(t, tables, 37) // 36 tables and "goose_db_version"
+		assert.Len(t, tables, 39) // 38 tables and "goose_db_version"
 		assert.Contains(t, tables, "user")
 		assert.Contains(t, tables, "passkey")
+		assert.Contains(t, tables, "external_review_rule")
+		assert.Contains(t, tables, "external_review_status")
 		assert.NotContains(t, tables, "version")
 		assert.NotContains(t, tables, "protect_branch_whitelist")
 		assert.True(t, db.Migrator().HasIndex("attachment", "UQE_attachment_uuid"))
@@ -58,7 +60,7 @@ func TestMigrate(t *testing.T) {
 		require.NoError(t, Migrate(logx.NewNoopLogger(), db))
 
 		// Turn the database into one of Gogs 0.12 that the legacy runner tracked.
-		require.NoError(t, db.Migrator().DropTable("goose_db_version", "lfs_object", "passkey"))
+		require.NoError(t, db.Migrator().DropTable("goose_db_version", "lfs_object", "passkey", "external_review_rule", "external_review_status"))
 		for _, column := range []string{"is_unlisted", "pulls_allow_merge", "pulls_allow_squash", "pulls_delete_branch", "pulls_merge_message", "pulls_squash_message"} {
 			require.NoError(t, db.Exec("ALTER TABLE repository DROP COLUMN "+column).Error)
 		}
@@ -72,6 +74,8 @@ func TestMigrate(t *testing.T) {
 		assert.True(t, db.Migrator().HasColumn("repository", "is_unlisted"))
 		assert.True(t, db.Migrator().HasTable("lfs_object"))
 		assert.True(t, db.Migrator().HasTable("passkey"))
+		assert.True(t, db.Migrator().HasTable("external_review_rule"))
+		assert.True(t, db.Migrator().HasTable("external_review_status"))
 		assert.True(t, db.Migrator().HasColumn("attachment", "uploader_id"))
 		assert.False(t, db.Migrator().HasTable("protect_branch_whitelist"))
 

@@ -54,6 +54,8 @@ type HookEvents struct {
 	PullRequest  bool `json:"pull_request"`
 	IssueComment bool `json:"issue_comment"`
 	Release      bool `json:"release"`
+	// ExternalReview is only delivered to Gogs webhooks.
+	ExternalReview bool `json:"external_review"`
 }
 
 // HookEvent represents events that will delivery hook.
@@ -184,6 +186,12 @@ func (w *Webhook) HasReleaseEvent() bool {
 		(w.ChooseEvents && w.Release)
 }
 
+// HasExternalReviewEvent returns true if hook enabled external review event.
+func (w *Webhook) HasExternalReviewEvent() bool {
+	return w.SendEverything ||
+		(w.ChooseEvents && w.ExternalReview)
+}
+
 type eventChecker struct {
 	checker func() bool
 	typ     HookEventType
@@ -200,6 +208,7 @@ func (w *Webhook) EventsArray() []string {
 		{w.HasPullRequestEvent, HookEventTypePullRequest},
 		{w.HasIssueCommentEvent, HookEventTypeIssueComment},
 		{w.HasReleaseEvent, HookEventTypeRelease},
+		{w.HasExternalReviewEvent, HookEventTypeExternalReview},
 	}
 	for _, c := range eventCheckers {
 		if c.checker() {

@@ -81,6 +81,10 @@ const (
 	HookEventTypePullRequest  HookEventType = "pull_request"
 	HookEventTypeIssueComment HookEventType = "issue_comment"
 	HookEventTypeRelease      HookEventType = "release"
+	// HookEventTypeExternalReview asks external review tools to review the head
+	// commit of a pull request. Only Gogs webhooks are delivered the event,
+	// since it is meant for tools rather than people.
+	HookEventTypeExternalReview HookEventType = "external_review"
 )
 
 // HookRequest represents hook task request information.
@@ -414,6 +418,8 @@ func (w *Webhook) hasEvent(event HookEventType) bool {
 		return w.HasIssueCommentEvent()
 	case HookEventTypeRelease:
 		return w.HasReleaseEvent()
+	case HookEventTypeExternalReview:
+		return w.HookTaskType == GOGS && w.HasExternalReviewEvent()
 	}
 	return true
 }
