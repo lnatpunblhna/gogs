@@ -90,6 +90,8 @@
               "api-reference/repositories/list-branches",
               "api-reference/repositories/get-a-branch",
               "api-reference/repositories/get-a-single-commit",
+              "api-reference/repositories/list-external-reviews-of-a-commit",
+              "api-reference/repositories/report-an-external-review-of-a-commit",
               "api-reference/repositories/download-raw-content",
               "api-reference/repositories/download-archive",
               "api-reference/repositories/get-contents",

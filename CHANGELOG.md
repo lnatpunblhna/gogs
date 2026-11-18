@@ -28,6 +28,7 @@ All notable changes to Gogs are documented in this file.
 - The name `search` is reserved and cannot be used for users or organizations. [#8549](https://github.com/gogs/gogs/pull/8549)
 - The admin panel shows recent traces of requests, with the user, repository and error behind each one, the Git commands and database queries they ran and search by trace ID, and charts of server health over the last hour and day on its own page, kept in memory without a collector. Set `[tracing] ENABLED = false` to turn it off. [#8554](https://github.com/gogs/gogs/pull/8554)
 - A command palette, opened with Ctrl K or ⌘K or the search button in the navbar, to jump to issues, pull requests, files, repositories, people and pages, search code, and run actions such as switching the theme or copying a clone URL. Type `>`, `#`, `@` or `/` to see only commands, issues, people or code. [#8551](https://github.com/gogs/gogs/pull/8551)
+- External code review tools, e.g., OpenCodeReview, can review pull requests. Repository admins choose an advisory or required review for each target branch on its branch protection page. Opening a pull request or pushing to it sends an `external_review` webhook event, the tool reports a pending, passed or failed result for the latest commit through the API with an optional link to its report, and the pull request shows the result. A required review keeps the pull request from being merged until its latest commit passes.
 
 ### Changed
 

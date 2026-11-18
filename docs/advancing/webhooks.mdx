@@ -128,3 +128,32 @@ X-Gogs-Signature: 1921679ed6274399b6514721056337f6913b6ff1cb35a24d340e983745d637
 | `repository` | The full repository object with metadata. |
 | `pusher` | The user who performed the push. |
 | `sender` | The user who triggered the event. |
+
+## External reviews
+
+Automated code review tools, e.g., OpenCodeReview, can review the latest commit of pull requests and report their results back to Gogs.
+
+1. Repository admins choose a review mode and a review tool name for a target branch on its branch protection page (**Settings > Branches**):
+   - **Advisory**: pull requests show the result and can be merged whatever it is.
+   - **Required**: pull requests can only be merged after their latest commit passes the review.
+1. Add a Gogs webhook that is subscribed to the **External review** event. Slack, Discord and DingTalk webhooks do not receive it.
+1. When a pull request that targets the branch is opened, or new commits are pushed to its branch, Gogs marks its latest commit as pending and sends an `external_review` event.
+1. The review tool reviews the commit and reports `pending`, `passed` or `failed` with [Report an external review of a commit](/api-reference/repositories/report-an-external-review-of-a-commit), using the access token of a user who can write to the repository. Only results with the review tool name of the target branch count.
+
+<Note>
+  A required review applies to merging pull requests. People who can push to the branch can still change it directly, unless the branch is protected and requires pull requests.
+</Note>
+
+### Payload fields
+
+| Field | Description |
+|---|---|
+| `action` | Always `requested`. |
+| `context` | The review tool name of the target branch, which the result must be reported with. |
+| `mode` | `advisory` or `required`. |
+| `sha` | The full SHA of the commit to review. The base repository has it as `refs/pull/<number>/head`, also for pull requests from forks. |
+| `status_url` | The API URL to report the result to. |
+| `number` | The number of the pull request. |
+| `pull_request` | The pull request object. |
+| `repository` | The base repository object. |
+| `sender` | The user who opened the pull request or pushed the commits. |

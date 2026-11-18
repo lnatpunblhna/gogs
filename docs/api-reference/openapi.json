@@ -5460,6 +5460,162 @@
           }
         }
       }
+    },
+    "/repos/{owner}/{repo}/reviews/{sha}": {
+      "get": {
+        "operationId": "listExternalReviews",
+        "summary": "List external reviews of a commit",
+        "tags": [
+          "Repositories"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ExternalReview"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found."
+          },
+          "422": {
+            "description": "Validation error."
+          }
+        },
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Repository owner"
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Repository name"
+          },
+          {
+            "name": "sha",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Full commit SHA"
+          }
+        ],
+        "description": "List the results that external review tools reported for a commit, ordered by context."
+      },
+      "post": {
+        "operationId": "createExternalReview",
+        "summary": "Report an external review of a commit",
+        "tags": [
+          "Repositories"
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalReview"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden."
+          },
+          "404": {
+            "description": "Resource not found."
+          },
+          "422": {
+            "description": "Validation error."
+          }
+        },
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Repository owner"
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Repository name"
+          },
+          {
+            "name": "sha",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Full commit SHA"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "context": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "description": "The name of the review tool, which must match the review tool name that the branch protection of the target branch names for the result to count. Letters, digits, \".\", \"_\", \"/\" and \"-\", starting with a letter or a digit."
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "pending",
+                      "passed",
+                      "failed"
+                    ]
+                  },
+                  "target_url": {
+                    "type": "string",
+                    "description": "An absolute HTTP or HTTPS link to the full report."
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "description": "A short summary of the result."
+                  }
+                },
+                "required": [
+                  "context",
+                  "state"
+                ]
+              }
+            }
+          }
+        },
+        "description": "Report the result of an external review tool for a commit, replacing any result the tool reported for it before. Requires write access to the repository. When the target branch of a pull request requires the review, the pull request can only be merged after its latest commit has passed."
+      }
     }
   },
   "components": {
@@ -6278,6 +6434,45 @@
           },
           "end_of_line": {
             "type": "string"
+          }
+        }
+      },
+      "ExternalReview": {
+        "type": "object",
+        "properties": {
+          "sha": {
+            "type": "string",
+            "description": "The full SHA of the reviewed commit."
+          },
+          "context": {
+            "type": "string",
+            "description": "The name of the review tool."
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "passed",
+              "failed"
+            ]
+          },
+          "target_url": {
+            "type": "string",
+            "description": "The link to the full report, if any."
+          },
+          "description": {
+            "type": "string"
+          },
+          "creator": {
+            "$ref": "#/components/schemas/User"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       }
