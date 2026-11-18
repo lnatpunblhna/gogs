@@ -5,7 +5,10 @@ import {
   ChevronDown,
   CircleAlert,
   CircleCheck,
+  CircleDashed,
   CircleX,
+  Clock,
+  ExternalLink,
   FileDiff,
   GitCommitHorizontal,
   GitMerge,
@@ -32,6 +35,7 @@ import {
   type IssueRef,
   type MergeMessage,
   type MergeStyle,
+  type PullExternalReview,
   type RepoCommitListItem,
   type RepoPullData,
   deleteRepoPullBranch,
@@ -296,11 +300,65 @@ function MergeBox({ issueRef, data }: { issueRef: IssueRef; data: RepoPullData }
             {pull.state === "mergeable" && pull.viewerNotInAllowlist ? (
               <p className="mt-1 text-(--color-muted-foreground)">{t("repo.pulls.merge_not_in_allowlist")}</p>
             ) : null}
+            {pull.state === "mergeable" && pull.externalReview?.blocksMerge ? (
+              <p className="mt-1 text-(--color-muted-foreground)">{t("repo.pulls.merge_external_review_required")}</p>
+            ) : null}
           </div>
         </div>
+        {pull.externalReview ? <ExternalReviewRow review={pull.externalReview} /> : null}
         {body}
       </div>
     </section>
+  );
+}
+
+const EXTERNAL_REVIEW_STATES: Record<
+  NonNullable<PullExternalReview["state"]> | "waiting",
+  { icon: LucideIcon; color: string }
+> = {
+  waiting: { icon: CircleDashed, color: "text-(--color-muted-foreground)" },
+  pending: { icon: Clock, color: "text-(--color-warning)" },
+  passed: { icon: CircleCheck, color: "text-(--color-success)" },
+  failed: { icon: CircleX, color: "text-(--color-destructive)" },
+};
+
+// ExternalReviewRow shows the result of the external review of the head
+// commit, with a link to its report when the review tool gave one.
+function ExternalReviewRow({ review }: { review: PullExternalReview }) {
+  const { t } = useTranslation();
+  const state = review.state ?? "waiting";
+  const { icon: Icon, color } = EXTERNAL_REVIEW_STATES[state];
+  const [before, after = ""] = t(`repo.pulls.external_review_${state}`).split("%s");
+  return (
+    <div className="flex items-start gap-2 border-t border-(--color-border) px-4 py-3 text-sm">
+      <Icon className={cn("mt-0.5 size-4 shrink-0", color)} aria-hidden />
+      <div className="min-w-0 flex-1">
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span>
+            {before}
+            <span className="font-mono font-medium wrap-anywhere">{review.context}</span>
+            {after}
+          </span>
+          <span className="inline-flex items-center rounded-full border border-(--color-border) px-2 text-xs leading-5 font-medium text-(--color-muted-foreground)">
+            {t(`repo.pulls.external_review_${review.mode}`)}
+          </span>
+        </p>
+        {review.description ? (
+          <p className="mt-1 wrap-anywhere text-(--color-muted-foreground)">{review.description}</p>
+        ) : null}
+      </div>
+      {review.targetURL ? (
+        <a
+          href={review.targetURL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex shrink-0 items-center gap-1 rounded-sm py-0.5 text-(--color-primary) hover:underline"
+        >
+          {t("repo.pulls.external_review_view_report")}
+          <ExternalLink className="size-3.5" aria-hidden />
+        </a>
+      ) : null}
+    </div>
   );
 }
 

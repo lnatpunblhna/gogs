@@ -2,9 +2,11 @@ import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-q
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
 import {
   GitBranch,
+  Info,
   KeyRound,
   Pencil,
   RefreshCw,
+  ScanEye,
   Settings,
   ShieldCheck,
   SquareTerminal,
@@ -1380,6 +1382,9 @@ export function RepoDeployKeys({ owner, name, keys }: { owner: string; name: str
   );
 }
 
+const BRANCH_PILL_CLASS =
+  "inline-flex items-center gap-1 rounded-full border border-(--color-border) px-2 text-xs leading-5 font-medium text-(--color-muted-foreground)";
+
 // RepoBranchSettings changes the default branch of a repository and leads to
 // the protection of its branches.
 export function RepoBranchSettings({
@@ -1403,6 +1408,8 @@ export function RepoBranchSettings({
     },
   });
   const { fields, formError } = formErrors(update.error);
+  const reviewModes = new Map(settings.externalReviews.map((r) => [r.branch, r.mode]));
+  const configuredBranches = [...new Set([...settings.protectedBranches, ...reviewModes.keys()])].sort();
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -1474,17 +1481,28 @@ export function RepoBranchSettings({
                 ))}
               </SelectContent>
             </Select>
-            {settings.protectedBranches.length ? (
+            {configuredBranches.length ? (
               <ul className="mt-4 glass rounded-md border border-(--color-border)">
-                {settings.protectedBranches.map((b) => (
+                {configuredBranches.map((b) => (
                   <li key={b} className="border-b border-(--color-border) last:border-b-0">
                     <Link
                       to="/$owner/$repo/settings/branches/$"
                       params={{ owner, repo: name, _splat: b }}
-                      className="flex items-center gap-2 px-4 py-2.5 font-mono text-sm wrap-anywhere text-(--color-primary) hover:bg-(--color-surface) hover:underline"
+                      className="group flex flex-wrap items-center gap-2 px-4 py-2.5 text-sm hover:bg-(--color-surface)"
                     >
-                      <ShieldCheck className="size-4 shrink-0" aria-hidden />
-                      {b}
+                      <span className="font-mono wrap-anywhere text-(--color-primary) group-hover:underline">{b}</span>
+                      {settings.protectedBranches.includes(b) ? (
+                        <span className={BRANCH_PILL_CLASS}>
+                          <ShieldCheck className="size-3.5" aria-hidden />
+                          {t("repo.branches.protected")}
+                        </span>
+                      ) : null}
+                      {reviewModes.has(b) ? (
+                        <span className={BRANCH_PILL_CLASS}>
+                          <ScanEye className="size-3.5" aria-hidden />
+                          {t(`repo.settings.external_review_badge_${reviewModes.get(b)}`)}
+                        </span>
+                      ) : null}
                     </Link>
                   </li>
                 ))}
@@ -1516,6 +1534,8 @@ export function RepoBranchProtection({
     enableAllowlist: branch.enableAllowlist,
     allowlistUserIDs: branch.allowlistUserIDs,
     allowlistTeamIDs: branch.allowlistTeamIDs,
+    externalReviewMode: branch.externalReviewMode,
+    externalReviewContext: branch.externalReviewContext,
   });
   const set = (patch: Partial<RepoProtectedBranchForm>) => setForm({ ...form, ...patch });
   const toggle = (ids: number[], id: number, on: boolean) => (on ? [...ids, id] : ids.filter((x) => x !== id));
@@ -1526,8 +1546,11 @@ export function RepoBranchProtection({
       await router.invalidate();
     },
   });
-  const { formError } = formErrors(update.error);
+  const { fields, formError } = formErrors(update.error);
   const [before, after = ""] = t("repo.settings.branch_protection_desc").split(/<b>%s<\/b>|%s/);
+  // Without pull requests being required, people who can push change the
+  // branch without a review.
+  const showPushHint = form.externalReviewMode !== "" && !(form.protected && form.requirePullRequest);
   const isOrg = branch.userOptions !== undefined;
 
   const onSubmit = (e: FormEvent) => {
@@ -1634,6 +1657,65 @@ export function RepoBranchProtection({
                 ) : null}
               </div>
             ) : null}
+            <div
+              role="radiogroup"
+              aria-labelledby="externalReview-label"
+              aria-describedby="externalReview-desc"
+              className="flex flex-col gap-3 border-t border-(--color-border) pt-5"
+            >
+              <p id="externalReview-label" className="text-sm font-semibold">
+                {t("repo.settings.external_review")}
+              </p>
+              <p id="externalReview-desc" className="text-sm text-(--color-muted-foreground)">
+                {t("repo.settings.external_review_desc")}
+              </p>
+              {(["", "advisory", "required"] as const).map((mode) => {
+                const key = mode || "off";
+                return (
+                  <RadioField
+                    key={key}
+                    id={`externalReview-${key}`}
+                    name="externalReviewMode"
+                    checked={form.externalReviewMode === mode}
+                    onChange={() => set({ externalReviewMode: mode })}
+                    label={
+                      <OptionLabel
+                        title={t(`repo.settings.external_review_${key}`)}
+                        desc={t(`repo.settings.external_review_${key}_desc`)}
+                      />
+                    }
+                  />
+                );
+              })}
+              {form.externalReviewMode !== "" ? (
+                <div className="ml-2 flex flex-col gap-5 border-l-2 border-(--color-border) pl-4">
+                  <FormField
+                    id="externalReviewContext"
+                    label={t("repo.settings.external_review_context")}
+                    helper={t("repo.settings.external_review_context_desc")}
+                    error={fields.externalReviewContext}
+                    invalid={"externalReviewContext" in fields}
+                  >
+                    <Input
+                      id="externalReviewContext"
+                      name="externalReviewContext"
+                      autoComplete="off"
+                      required
+                      maxLength={255}
+                      className="max-w-sm font-mono"
+                      value={form.externalReviewContext}
+                      onChange={(e) => set({ externalReviewContext: e.target.value })}
+                    />
+                  </FormField>
+                  {showPushHint ? (
+                    <p className="flex items-start gap-2 text-sm text-(--color-muted-foreground)">
+                      <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
+                      {t("repo.settings.external_review_push_hint")}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
             <div className="flex flex-wrap items-center gap-2 border-t border-(--color-border) pt-5">
               <Button type="submit">{t("repo.settings.update_settings")}</Button>
               <Button asChild variant="outline">

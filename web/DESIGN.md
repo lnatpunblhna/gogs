@@ -175,6 +175,10 @@ Switches between sibling views inside a page (labels and milestones, the branch 
 
 A switcher with more links than fit at 375px, e.g., the five views of the branches page, scrolls sideways inside its own row, which runs to the edges of the screen below `sm`. The page itself stays 375px wide, and the current link scrolls into view when the page opens. Give each link `activeOptions={{ exact: true }}`, so that only one link is marked as the current page.
 
+## State pills
+
+A short state of an item that sits beside its name, e.g., a protected branch, an active Git hook, or the mode of an external review, is a muted pill: `inline-flex items-center gap-1 rounded-full border border-(--color-border) px-2 text-xs leading-5 font-medium text-(--color-muted-foreground)`. It always carries text, with an optional leading `size-3.5` icon that is `aria-hidden`, so the state never rests on the icon alone.
+
 ## Narrow screens
 
 Every page works at 375px wide. Only content that is meant to scroll does so sideways: code, diffs, and a view switcher too long for the screen. Tab rows fold into a "More" menu instead (see Tabs).

@@ -372,7 +372,12 @@ export interface RepoBranchSettingsData {
   defaultBranch: string;
   branches: string[];
   protectedBranches: string[];
+  // externalReviews are the branches that pull requests targeting them get
+  // external reviews for.
+  externalReviews: { branch: string; mode: ExternalReviewMode }[];
 }
+
+export type ExternalReviewMode = "advisory" | "required";
 
 export function fetchRepoBranchSettings(owner: string, name: string) {
   return fetchJSON<RepoBranchSettingsData>(repoSettingsURL(owner, name, "/branches"));
@@ -388,6 +393,10 @@ export interface RepoProtectedBranchForm {
   enableAllowlist: boolean;
   allowlistUserIDs: number[];
   allowlistTeamIDs: number[];
+  // externalReviewMode is empty when pull requests that target the branch
+  // get no external reviews.
+  externalReviewMode: ExternalReviewMode | "";
+  externalReviewContext: string;
 }
 
 export interface RepoProtectedBranch extends RepoProtectedBranchForm {
@@ -821,6 +830,9 @@ export interface RepoPullInfo {
   // viewerNotInAllowlist is whether the viewer could merge if they were in
   // the push allowlist of the protected base branch.
   viewerNotInAllowlist: boolean;
+  // externalReview is the external review of the head commit, when the base
+  // branch has a rule for it and the pull request is open.
+  externalReview?: PullExternalReview;
   // viewerID is the viewer who can merge, whose browser remembers the merge
   // style they last used in the repository.
   viewerID?: number;
@@ -835,6 +847,21 @@ export interface RepoPullInfo {
   // both, unless the pull request is broken.
   // markdownExtensions are the extensions of files that show a rich diff.
   diff?: { base: string; head: string; owner: string; name: string; markdownExtensions: string[] };
+}
+
+export interface PullExternalReview {
+  mode: ExternalReviewMode;
+  context: string;
+  // state is missing when the review tool has reported no result for the
+  // commit yet.
+  state?: "pending" | "passed" | "failed";
+  targetURL?: string;
+  description?: string;
+  updatedAt?: string;
+  commitID: string;
+  // blocksMerge is whether the review is required and the commit has not
+  // passed it.
+  blocksMerge: boolean;
 }
 
 export interface RepoPullData extends RepoIssueData {

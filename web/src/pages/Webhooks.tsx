@@ -48,7 +48,7 @@ const WEBHOOK_TYPES: Record<WebhookType, { name: string; logo: string; site: str
   dingtalk: { name: "Dingtalk", logo: "/img/dingtalk.png", site: "https://open-doc.dingtalk.com/" },
 };
 
-const EVENTS: { key: keyof WebhookEvents; label: string }[] = [
+const EVENTS: { key: keyof WebhookEvents; label: string; gogsOnly?: boolean }[] = [
   { key: "create", label: "create" },
   { key: "delete", label: "delete" },
   { key: "fork", label: "fork" },
@@ -57,6 +57,9 @@ const EVENTS: { key: keyof WebhookEvents; label: string }[] = [
   { key: "pullRequest", label: "pull_request" },
   { key: "issueComment", label: "issue_comment" },
   { key: "release", label: "release" },
+  // Only Gogs webhooks receive requests for external reviews, which are meant
+  // for tools rather than people.
+  { key: "externalReview", label: "external_review", gogsOnly: true },
 ];
 
 function TypeLogo({ type, className = "size-4" }: { type: WebhookType; className?: string }) {
@@ -214,6 +217,7 @@ const NEW_SETTINGS: Omit<WebhookSettings, "type"> = {
     issueComment: false,
     pullRequest: false,
     release: false,
+    externalReview: false,
   },
   active: true,
 };
@@ -380,7 +384,7 @@ function WebhookForm({ scope, type, hook }: { scope: WebhookScope; type: Webhook
             ))}
             {form.events === "choose_events" ? (
               <div className="grid gap-3 pl-6 sm:grid-cols-2">
-                {EVENTS.map(({ key, label }) => (
+                {EVENTS.filter(({ gogsOnly }) => !gogsOnly || type === "gogs").map(({ key, label }) => (
                   <CheckboxField
                     key={key}
                     id={`event-${key}`}

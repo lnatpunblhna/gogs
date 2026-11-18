@@ -30,6 +30,8 @@ export interface WebhookEvents {
   issueComment: boolean;
   pullRequest: boolean;
   release: boolean;
+  // externalReview is only delivered to Gogs webhooks.
+  externalReview: boolean;
 }
 
 export interface WebhookSettings {

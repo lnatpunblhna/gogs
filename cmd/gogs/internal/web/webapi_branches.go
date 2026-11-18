@@ -250,6 +250,14 @@ type repoBranchSettings struct {
 	DefaultBranch     string   `json:"defaultBranch"`
 	Branches          []string `json:"branches"`
 	ProtectedBranches []string `json:"protectedBranches"`
+	// ExternalReviews are the branches that pull requests targeting them get
+	// external reviews for.
+	ExternalReviews []repoBranchExternalReview `json:"externalReviews"`
+}
+
+type repoBranchExternalReview struct {
+	Branch string                      `json:"branch"`
+	Mode   database.ExternalReviewMode `json:"mode"`
 }
 
 func getRepoBranchSettings(c flamego.Context, logger *logx.Logger, repoCtx *repoContext, rc *repoAdminContext) (statusCode int, resp *repoBranchSettings, err error) {
@@ -259,6 +267,7 @@ func getRepoBranchSettings(c flamego.Context, logger *logx.Logger, repoCtx *repo
 		DefaultBranch:     repo.DefaultBranch,
 		Branches:          []string{},
 		ProtectedBranches: []string{},
+		ExternalReviews:   []repoBranchExternalReview{},
 	}
 	if repo.IsEmpty {
 		return http.StatusOK, resp, nil
@@ -282,6 +291,16 @@ func getRepoBranchSettings(c flamego.Context, logger *logx.Logger, repoCtx *repo
 	for _, p := range protected {
 		if slices.Contains(resp.Branches, p.Name) {
 			resp.ProtectedBranches = append(resp.ProtectedBranches, p.Name)
+		}
+	}
+	rules, err := database.Handle.ExternalReviews().ListRules(c.Request().Context(), repo.ID)
+	if err != nil {
+		logger.Error("Failed to list external review rules", "repoID", repo.ID, "error", err)
+		return http.StatusInternalServerError, nil, errors.Wrap(err, "list external review rules")
+	}
+	for _, rule := range rules {
+		if slices.Contains(resp.Branches, rule.Branch) {
+			resp.ExternalReviews = append(resp.ExternalReviews, repoBranchExternalReview{Branch: rule.Branch, Mode: rule.Mode})
 		}
 	}
 	return http.StatusOK, resp, nil
@@ -337,6 +356,10 @@ type repoProtectedBranch struct {
 	EnableAllowlist    bool    `json:"enableAllowlist"`
 	AllowlistUserIDs   []int64 `json:"allowlistUserIDs"`
 	AllowlistTeamIDs   []int64 `json:"allowlistTeamIDs"`
+	// ExternalReviewMode is "advisory" or "required" when pull requests that
+	// target the branch get external reviews, and empty otherwise.
+	ExternalReviewMode    database.ExternalReviewMode `json:"externalReviewMode"`
+	ExternalReviewContext string                      `json:"externalReviewContext"`
 	// The options are only sent for repositories of organizations, which
 	// alone can let people and teams push past the protection.
 	UserOptions []repoProtectedBranchUser `json:"userOptions,omitempty"`
@@ -386,7 +409,7 @@ func splitIDs(s string) []int64 {
 	return ids
 }
 
-func getRepoProtectedBranch(logger *logx.Logger, rc *repoAdminContext, protectBranch *database.ProtectBranch) (statusCode int, resp *repoProtectedBranch, err error) {
+func getRepoProtectedBranch(c flamego.Context, logger *logx.Logger, rc *repoAdminContext, protectBranch *database.ProtectBranch) (statusCode int, resp *repoProtectedBranch, err error) {
 	resp = &repoProtectedBranch{
 		Name:               protectBranch.Name,
 		Protected:          protectBranch.Protected,
@@ -394,6 +417,14 @@ func getRepoProtectedBranch(logger *logx.Logger, rc *repoAdminContext, protectBr
 		EnableAllowlist:    protectBranch.EnableAllowlist,
 		AllowlistUserIDs:   splitIDs(protectBranch.AllowlistUserIDs),
 		AllowlistTeamIDs:   splitIDs(protectBranch.AllowlistTeamIDs),
+	}
+	rule, err := database.Handle.ExternalReviews().GetRule(c.Request().Context(), rc.Repo.ID, protectBranch.Name)
+	if err != nil && !database.IsErrExternalReviewRuleNotExist(err) {
+		logger.Error("Failed to get external review rule", "repoID", rc.Repo.ID, "branch", protectBranch.Name, "error", err)
+		return http.StatusInternalServerError, nil, errors.Wrap(err, "get external review rule")
+	} else if rule != nil {
+		resp.ExternalReviewMode = rule.Mode
+		resp.ExternalReviewContext = rule.Context
 	}
 	if !rc.Owner.IsOrganization() {
 		return http.StatusOK, resp, nil
@@ -426,9 +457,19 @@ type repoProtectedBranchRequest struct {
 	EnableAllowlist    bool    `json:"enableAllowlist"`
 	AllowlistUserIDs   []int64 `json:"allowlistUserIDs"`
 	AllowlistTeamIDs   []int64 `json:"allowlistTeamIDs"`
+	// ExternalReviewMode is "advisory" or "required" for pull requests that
+	// target the branch to get external reviews, and empty for them not to.
+	ExternalReviewMode    string `json:"externalReviewMode" validate:"omitempty,oneof=advisory required"`
+	ExternalReviewContext string `json:"externalReviewContext"`
 }
 
-func putRepoProtectedBranch(c flamego.Context, logger *logx.Logger, rc *repoAdminContext, protectBranch *database.ProtectBranch, req repoProtectedBranchRequest) (statusCode int, resp any, err error) {
+func putRepoProtectedBranch(c flamego.Context, logger *logx.Logger, l i18n.Locale, rc *repoAdminContext, protectBranch *database.ProtectBranch, req repoProtectedBranchRequest) (statusCode int, resp any, err error) {
+	reviewContext := strings.TrimSpace(req.ExternalReviewContext)
+	if req.ExternalReviewMode != "" && !database.IsValidExternalReviewContext(reviewContext) {
+		msg := l.Tr("repo.settings.external_review_context_invalid")
+		return http.StatusUnprocessableEntity, &bindingErrorResponse{Fields: fieldErrors{"externalReviewContext": &msg}}, nil
+	}
+
 	protectBranch.Protected = req.Protected
 	protectBranch.RequirePullRequest = req.RequirePullRequest
 	if rc.Owner.IsOrganization() {
@@ -442,6 +483,16 @@ func putRepoProtectedBranch(c flamego.Context, logger *logx.Logger, rc *repoAdmi
 	if err != nil {
 		logger.Error("Failed to update branch protection", "repoID", rc.Repo.ID, "branch", protectBranch.Name, "error", err)
 		return http.StatusInternalServerError, nil, errors.Wrap(err, "update protected branch")
+	}
+
+	if req.ExternalReviewMode == "" {
+		err = database.Handle.ExternalReviews().DeleteRule(c.Request().Context(), rc.Repo.ID, protectBranch.Name)
+	} else {
+		err = database.Handle.ExternalReviews().SaveRule(c.Request().Context(), rc.Repo.ID, protectBranch.Name, database.ExternalReviewMode(req.ExternalReviewMode), reviewContext)
+	}
+	if err != nil {
+		logger.Error("Failed to update external review rule", "repoID", rc.Repo.ID, "branch", protectBranch.Name, "error", err)
+		return http.StatusInternalServerError, nil, errors.Wrap(err, "update external review rule")
 	}
 	return http.StatusNoContent, nil, nil
 }

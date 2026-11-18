@@ -131,6 +131,8 @@ type webhookEvents struct {
 	IssueComment bool `json:"issueComment"`
 	PullRequest  bool `json:"pullRequest"`
 	Release      bool `json:"release"`
+	// ExternalReview is only delivered to Gogs webhooks.
+	ExternalReview bool `json:"externalReview"`
 }
 
 // webhookRequest is the settings of a webhook. Which of them apply depends on
@@ -204,14 +206,15 @@ func getWebhook(c flamego.Context, logger *logx.Logger, w *database.Webhook) (st
 			settings.Events = "choose_events"
 		}
 		settings.ChosenEvents = webhookEvents{
-			Create:       w.Create,
-			Delete:       w.Delete,
-			Fork:         w.Fork,
-			Push:         w.Push,
-			Issues:       w.Issues,
-			IssueComment: w.IssueComment,
-			PullRequest:  w.PullRequest,
-			Release:      w.Release,
+			Create:         w.Create,
+			Delete:         w.Delete,
+			Fork:           w.Fork,
+			Push:           w.Push,
+			Issues:         w.Issues,
+			IssueComment:   w.IssueComment,
+			PullRequest:    w.PullRequest,
+			Release:        w.Release,
+			ExternalReview: w.ExternalReview,
 		}
 	}
 
@@ -281,14 +284,15 @@ func applyWebhookRequest(l i18n.Locale, w *database.Webhook, req webhookRequest)
 		SendEverything: req.Events == "send_everything",
 		ChooseEvents:   req.Events == "choose_events",
 		HookEvents: database.HookEvents{
-			Create:       req.ChosenEvents.Create,
-			Delete:       req.ChosenEvents.Delete,
-			Fork:         req.ChosenEvents.Fork,
-			Push:         req.ChosenEvents.Push,
-			Issues:       req.ChosenEvents.Issues,
-			IssueComment: req.ChosenEvents.IssueComment,
-			PullRequest:  req.ChosenEvents.PullRequest,
-			Release:      req.ChosenEvents.Release,
+			Create:         req.ChosenEvents.Create,
+			Delete:         req.ChosenEvents.Delete,
+			Fork:           req.ChosenEvents.Fork,
+			Push:           req.ChosenEvents.Push,
+			Issues:         req.ChosenEvents.Issues,
+			IssueComment:   req.ChosenEvents.IssueComment,
+			PullRequest:    req.ChosenEvents.PullRequest,
+			Release:        req.ChosenEvents.Release,
+			ExternalReview: req.ChosenEvents.ExternalReview,
 		},
 	}
 	switch w.HookTaskType {

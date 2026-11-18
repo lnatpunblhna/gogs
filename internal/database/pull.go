@@ -382,11 +382,6 @@ func (pr *PullRequest) Merge(ctx context.Context, logger *logx.Logger, doer *Use
 	// partial change behind.
 	ctx = context.WithoutCancel(ctx)
 
-	defer func() {
-		go HookQueue.Add(pr.BaseRepo.ID)
-		go AddTestPullRequestTask(logger, doer, pr.BaseRepo.ID, pr.BaseBranch, false)
-	}()
-
 	headRepoPath := RepoPath(pr.HeadUserName, pr.HeadRepo.Name)
 	headGitRepo, err := git.Open(headRepoPath)
 	if err != nil {
@@ -410,6 +405,11 @@ func (pr *PullRequest) Merge(ctx context.Context, logger *logx.Logger, doer *Use
 	} else if reviewCheck != nil && reviewCheck.BlocksMerge() {
 		return ErrExternalReviewRequired{Context: reviewCheck.Rule.Context, CommitID: headCommitID}
 	}
+
+	defer func() {
+		go HookQueue.Add(pr.BaseRepo.ID)
+		go AddTestPullRequestTask(logger, doer, pr.BaseRepo.ID, pr.BaseBranch, false)
+	}()
 
 	sess := x.NewSession()
 	defer sess.Close()

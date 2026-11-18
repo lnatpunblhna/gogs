@@ -65,6 +65,9 @@ type repoPullInfo struct {
 	// ViewerNotInAllowlist is whether the viewer could merge it if they were
 	// in the push allowlist of the protected base branch.
 	ViewerNotInAllowlist bool `json:"viewerNotInAllowlist"`
+	// ExternalReview is the external review of the head commit, when the base
+	// branch has a rule for it and the pull request is open.
+	ExternalReview *pullExternalReview `json:"externalReview,omitempty"`
 	// ViewerID is the viewer who can merge, whose browser remembers the merge
 	// style they last used in the repository.
 	ViewerID int64 `json:"viewerID,omitempty"`
@@ -92,6 +95,41 @@ type pullDiff struct {
 	Name  string `json:"name"`
 	// MarkdownExtensions are the extensions of files that show a rich diff.
 	MarkdownExtensions []string `json:"markdownExtensions"`
+}
+
+// pullExternalReview is the result of the external review that the base
+// branch of a pull request asks for its head commit.
+type pullExternalReview struct {
+	// Mode is "advisory" or "required".
+	Mode    database.ExternalReviewMode `json:"mode"`
+	Context string                      `json:"context"`
+	// State is "pending", "passed" or "failed", or empty when the review tool
+	// has reported no result for the commit.
+	State       database.ExternalReviewState `json:"state,omitempty"`
+	TargetURL   string                       `json:"targetURL,omitempty"`
+	Description string                       `json:"description,omitempty"`
+	UpdatedAt   *time.Time                   `json:"updatedAt,omitempty"`
+	CommitID    string                       `json:"commitID"`
+	// BlocksMerge is whether the review is required and the commit has not
+	// passed it.
+	BlocksMerge bool `json:"blocksMerge"`
+}
+
+func toPullExternalReview(check *database.ExternalReviewCheck, commitID string) *pullExternalReview {
+	review := &pullExternalReview{
+		Mode:        check.Rule.Mode,
+		Context:     check.Rule.Context,
+		CommitID:    commitID,
+		BlocksMerge: check.BlocksMerge(),
+	}
+	if check.Status != nil {
+		review.State = check.Status.State
+		review.TargetURL = check.Status.TargetURL
+		review.Description = check.Status.Description
+		updatedAt := check.Status.Updated.UTC()
+		review.UpdatedAt = &updatedAt
+	}
+	return review
 }
 
 type repoPullView struct {
@@ -194,6 +232,14 @@ func describePull(ctx context.Context, repoCtx *repoContext, issue *database.Iss
 	}
 	info.CommitCount, info.FileCount = len(meta.Commits), meta.NumFiles
 	rng = &pullRange{GitRepo: headGitRepo, Owner: pull.HeadUserName, Name: pull.HeadRepo.Name, Base: meta.MergeBase, Head: headCommitID}
+	if !issue.IsClosed {
+		check, err := database.Handle.ExternalReviews().Check(ctx, repo.ID, pull.BaseBranch, headCommitID)
+		if err != nil {
+			return nil, nil, nil, errors.Wrap(err, "check external review")
+		} else if check != nil {
+			info.ExternalReview = toPullExternalReview(check, headCommitID)
+		}
+	}
 	switch {
 	case issue.IsClosed:
 		info.State = "closed"
@@ -202,11 +248,12 @@ func describePull(ctx context.Context, repoCtx *repoContext, issue *database.Iss
 	case pull.CanAutoMerge():
 		info.State = "mergeable"
 		if repoCtx.Viewer.CanWrite() {
-			info.ViewerCanMerge, err = canPushTo(ctx, repoCtx, pull.BaseBranch)
+			canPush, err := canPushTo(ctx, repoCtx, pull.BaseBranch)
 			if err != nil {
 				return nil, nil, nil, errors.Wrap(err, "check push allowlist")
 			}
-			info.ViewerNotInAllowlist = !info.ViewerCanMerge
+			info.ViewerNotInAllowlist = !canPush
+			info.ViewerCanMerge = canPush && (info.ExternalReview == nil || !info.ExternalReview.BlocksMerge)
 		}
 		if info.ViewerCanMerge {
 			info.ViewerID = repoCtx.Viewer.ID()
@@ -351,6 +398,9 @@ func postRepoPullMerge(c flamego.Context, logger *logx.Logger, l i18n.Locale, vi
 		return http.StatusUnprocessableEntity, &bindingErrorResponse{Error: l.Tr("repo.pulls.merge_style_not_allowed")}, nil
 	}
 	if err = pull.Merge(c.Request().Context(), logger, viewer, gitRepo, style, database.MergeMessage{Title: req.Title, Body: req.Body}); err != nil {
+		if database.IsErrExternalReviewRequired(err) {
+			return http.StatusUnprocessableEntity, &bindingErrorResponse{Error: l.Tr("repo.pulls.merge_external_review_required")}, nil
+		}
 		logger.Error("Failed to merge pull request", "pullID", pull.ID, "error", err)
 		return http.StatusInternalServerError, nil, errors.Wrap(err, "merge")
 	}
